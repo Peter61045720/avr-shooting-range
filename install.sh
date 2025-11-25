@@ -19,6 +19,7 @@ fi
 
 cd simavr
 git checkout olimex-avr-mt128
+rm -rf .git
 
 # Pass linker options
 export LDFLAGS="-Wl,--copy-dt-needed-entries"
