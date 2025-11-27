@@ -121,6 +121,59 @@ static void lcd_init() {
     lcd_send_command(CLR_DISP);
 }
 
+// -------------------- Button handling --------------------
+#define BUTTON_NONE     0
+#define BUTTON_UP       1
+#define BUTTON_LEFT     2
+#define BUTTON_MIDDLE   3
+#define BUTTON_RIGHT    4
+#define BUTTON_DOWN     5
+static int button_accept = 1;
+
+static int button_pressed() {
+    if (!(PINA & 0b00000001) && button_accept) {
+        button_accept = 0;
+        return BUTTON_UP;
+    }
+
+    if (!(PINA & 0b00000010) && button_accept) {
+        button_accept = 0;
+        return BUTTON_LEFT;
+    }
+
+    if (!(PINA & 0b00000100) && button_accept) {
+        button_accept = 0;
+        return BUTTON_MIDDLE;
+    }
+
+    if (!(PINA & 0b00001000) && button_accept) {
+        button_accept = 0;
+        return BUTTON_RIGHT;
+    }
+
+    if (!(PINA & 0b00010000) && button_accept) {
+        button_accept = 0;
+        return BUTTON_DOWN;
+    }
+
+    return BUTTON_NONE;
+}
+
+static void button_unlock() {
+    if (
+        (
+            (PINA & 0b00000001) | 
+            (PINA & 0b00000010) | 
+            (PINA & 0b00000100) | 
+            (PINA & 0b00001000) | 
+            (PINA & 0b00010000)
+        ) == 31
+    ) {
+        button_accept = 1;
+    }
+}
+
+// -------------------- Main function --------------------
 int main() {
     port_init();
     lcd_init();
@@ -128,27 +181,43 @@ int main() {
     lcd_send_line1(" Shooting Range");
     lcd_send_line2("  Press  start");
 
-    unsigned int b = 1; // button lock (0: pressed, 1: released)
-
     while (1) {
-        // Middle Button (Button 3)
-        if (!(PINA & 0b00000100) && b) {
-            lcd_send_command(CLR_DISP);
-            lcd_send_line1("Loading...");
-            b = 0;  // button is pressed
+        while (button_pressed() != BUTTON_MIDDLE) {
+            button_unlock();
         }
+        
+        lcd_send_command(CLR_DISP);
+        lcd_send_line1("Loading...");
 
-        //check state of all buttons
-        if (
-            (
-                  (PINA & 0b00000001)
-                | (PINA & 0b00000010)
-                | (PINA & 0b00000100)
-                | (PINA & 0b00001000)
-                | (PINA & 0b00010000)
-            ) == 31
-        ) {
-            b = 1;  // if all buttons are released b gets value 1
+        while (1) {
+            int button = button_pressed();
+
+            if (button == BUTTON_UP) {
+                lcd_send_command(CLR_DISP);
+                lcd_send_line1("BUTTON_UP");
+            }
+
+            if (button == BUTTON_LEFT) {
+                lcd_send_command(CLR_DISP);
+                lcd_send_line1("BUTTON_LEFT");
+            }
+
+            if (button == BUTTON_MIDDLE) {
+                lcd_send_command(CLR_DISP);
+                lcd_send_line1("BUTTON_MIDDLE");
+            }
+
+            if (button == BUTTON_RIGHT) {
+                lcd_send_command(CLR_DISP);
+                lcd_send_line1("BUTTON_RIGHT");
+            }
+            
+            if (button == BUTTON_DOWN) {
+                lcd_send_command(CLR_DISP);
+                lcd_send_line1("BUTTON_DOWN");
+            }
+
+            button_unlock();
         }
     }
 
