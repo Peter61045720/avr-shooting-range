@@ -4,6 +4,7 @@
 AVR_MCU(F_CPU, "atmega128");
 
 #include "avr/io.h"
+#include "avr/interrupt.h"
 #include "util/delay.h"
 
 #define	__AVR_ATMEGA128__	1
@@ -224,7 +225,7 @@ static unsigned char cg_ram[64] = {
     0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY4
 };
 
-static void init_cg_ram() {
+static void cg_ram_init() {
     lcd_send_command(CG_RAM_ADDR);
     for (unsigned int i = 0; i < 64; ++i) {
         lcd_send_char(cg_ram[i]);
@@ -235,12 +236,14 @@ static void init_cg_ram() {
 
 // ----- Game logic -----
 static int health_points = 3;
-static int remaining_time = 99;
+static volatile int remaining_time = 99;
+static volatile int tick = 0;
 static long score = 0;
 
 static void reset_game_state() {
     health_points = 3;
     remaining_time = 99;
+    tick = 0;
     score = 0;
 }
 
@@ -277,7 +280,7 @@ static void hud_init() {
     // Line 1
     lcd_send_command(DD_RAM_ADDR);
     lcd_send_text("HP|");
-    
+
     lcd_send_command(DD_RAM_ADDR + 13);
     lcd_send_char('|');
     lcd_send_char(CHAR_TIMER);
@@ -302,13 +305,46 @@ static void hud_init() {
 static void update_screen() {
     lcd_send_command(DD_RAM_ADDR2);
     lcd_send_int(health_points);
+
+    lcd_send_command(DD_RAM_ADDR2 + 14);
+
+    if (remaining_time < 10) {
+        lcd_send_int(0);
+    } 
+    
+    lcd_send_int(remaining_time);
+}
+
+// -------------------- Timer --------------------
+static void timer_init() {
+    // Timer1 (16 bit)
+    TCNT1 = 0;
+    TCCR1B |= (1 << CS12) | (1 << CS10);    // Timer1 clock rate: 16 000 000 Hz / 1 024 = 15 625 Hz
+    TIMSK = (1 << TOIE1);                   // Overflow period: 65 536 / 15 625 Hz = 4,194304 sec
+    sei();
+}
+
+static void reset_timer(int t) {
+    TCNT1 = 0;
+    tick = 0;
+    remaining_time = t;
+}
+
+ISR(TIMER1_OVF_vect) {
+    tick++;
+    
+    if (tick >= 4) {
+        tick = 0;
+        remaining_time--;
+    }
 }
 
 // -------------------- Main function --------------------
 int main() {
     port_init();
     lcd_init();
-    init_cg_ram();
+    cg_ram_init();
+    timer_init();
 
     // ----- Program loop -----
     while (1) {
@@ -316,11 +352,12 @@ int main() {
         display_title_screen();
         wait_until_button_pressed(BUTTON_MIDDLE);
         display_loading_screen();
+        reset_timer(99);
         hud_init();
 
         // ----- Game loop -----
         while (1) {
-            if (health_points <= 0) {
+            if (health_points <= 0 || remaining_time <= 0) {
                 break;
             }
 
