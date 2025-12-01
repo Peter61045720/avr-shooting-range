@@ -21,6 +21,7 @@ AVR_MCU(F_CPU, "atmega128");
 #define CUR_UP          0x00000080
 #define CUR_DOWN        0x000000C0
 #define ENTER           0x000000C0
+#define CG_RAM_ADDR     0x00000040
 #define DD_RAM_ADDR     0x00000080
 #define DD_RAM_ADDR2    0x000000C0
 
@@ -202,14 +203,44 @@ static void wait_until_button_pressed(int button_code) {
     }
 }
 
+// -------------------- Custom characters --------------------
+#define CHAR_CROSSHAIR  0
+#define CHAR_HIT_MARKER 1
+#define CHAR_HEART      2
+#define CHAR_TIMER      3
+#define CHAR_EMPTY1     4
+#define CHAR_EMPTY2     5
+#define CHAR_EMPTY3     6
+#define CHAR_EMPTY4     7
+
+static unsigned char cg_ram[64] = {
+    0b00000, 0b01010, 0b10001, 0b10101, 0b10001, 0b01010, 0b00000, 0b00000, // CROSSHAIR
+    0b00000, 0b10001, 0b01010, 0b00000, 0b01010, 0b10001, 0b00000, 0b00000, // HIT MARKER
+    0b00000, 0b01010, 0b11111, 0b11111, 0b01110, 0b00100, 0b00000, 0b00000, // HEART
+    0b01110, 0b00100, 0b01110, 0b10101, 0b10111, 0b10001, 0b01110, 0b00000, // TIMER
+    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY1
+    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY2
+    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY3
+    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY4
+};
+
+static void init_cg_ram() {
+    lcd_send_command(CG_RAM_ADDR);
+    for (unsigned int i = 0; i < 64; ++i) {
+        lcd_send_char(cg_ram[i]);
+    }
+}
+
 // -------------------- Game functions & helpers --------------------
 
 // ----- Game logic -----
 static int health_points = 3;
+static int remaining_time = 99;
 static long score = 0;
 
 static void reset_game_state() {
     health_points = 3;
+    remaining_time = 99;
     score = 0;
 }
 
@@ -243,17 +274,33 @@ static void display_score_screen() {
 static void hud_init() {
     lcd_send_command(CLR_DISP);
 
-    lcd_send_line1("HP|");
-    lcd_send_line2("03|");
-
+    // Line 1
+    lcd_send_command(DD_RAM_ADDR);
+    lcd_send_text("HP|");
+    
     lcd_send_command(DD_RAM_ADDR + 13);
-    lcd_send_text("|TM");
+    lcd_send_char('|');
+    lcd_send_char(CHAR_TIMER);
+    lcd_send_char('T');
+
+    // Line 2
+    lcd_send_command(DD_RAM_ADDR2);
+    lcd_send_int(health_points);
+    lcd_send_char(CHAR_HEART);
+    lcd_send_char('|');
+
     lcd_send_command(DD_RAM_ADDR2 + 13);
-    lcd_send_text("|99");
+    lcd_send_char('|');
+    lcd_send_int(remaining_time);
+
+    lcd_send_command(DD_RAM_ADDR + 5);
+    lcd_send_char(CHAR_CROSSHAIR);
+    lcd_send_command(DD_RAM_ADDR2 + 7);
+    lcd_send_char(CHAR_HIT_MARKER);
 }
 
 static void update_screen() {
-    lcd_send_command(DD_RAM_ADDR2 + 1);
+    lcd_send_command(DD_RAM_ADDR2);
     lcd_send_int(health_points);
 }
 
@@ -261,6 +308,7 @@ static void update_screen() {
 int main() {
     port_init();
     lcd_init();
+    init_cg_ram();
 
     // ----- Program loop -----
     while (1) {
