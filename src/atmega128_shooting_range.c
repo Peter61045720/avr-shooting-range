@@ -4,6 +4,7 @@
 AVR_MCU(F_CPU, "atmega128");
 
 #include "avr/io.h"
+#include "util/delay.h"
 
 #define	__AVR_ATMEGA128__	1
 
@@ -71,6 +72,28 @@ static void lcd_send_char(unsigned char a) {
 	PORTC = (PORTC & 0b00001111) | data;   // clear D4-D7
 	PORTC = PORTC | 0b00000001;            // set RS port to 1 -> display set to command mode
 	e_pulse();                              // pulse to set d4-d7 bits
+}
+
+static void lcd_send_int(long number) {
+	int digits[20];
+	unsigned char temp = 0, number_length = 0;
+
+	if (number < 0) {
+		lcd_send_char('-');
+		number = -number;
+	}
+
+	do {
+		temp++;
+		digits[temp] = number % 10;
+		number = number / 10;
+	} while (number);
+
+	number_length = temp;
+
+	for (temp = number_length; temp > 0; temp--) {
+        lcd_send_char(digits[temp] + 48);
+    }
 }
 
 static void lcd_send_text(char* text) {
@@ -173,52 +196,100 @@ static void button_unlock() {
     }
 }
 
+static void wait_until_button_pressed(int button_code) {
+    while (button_pressed() != button_code) {
+        button_unlock();
+    }
+}
+
+// -------------------- Game functions & helpers --------------------
+
+// ----- Game logic -----
+static int health_points = 3;
+static long score = 0;
+
+static void reset_game_state() {
+    health_points = 3;
+    score = 0;
+}
+
+// ----- Display -----
+static void display_title_screen() {
+    lcd_send_command(CLR_DISP);
+    lcd_send_line1(" Shooting Range");
+    lcd_send_line2("  Press START! ");
+}
+
+static void display_loading_screen() {
+    lcd_send_command(CLR_DISP);
+    lcd_send_line1("Loading...");
+    _delay_ms(5000);
+}
+
+static void display_game_over_screen() {
+    lcd_send_command(CLR_DISP);
+    lcd_send_line1("   Game over");
+    lcd_send_line2("  Press START! ");
+}
+
+static void display_score_screen() {
+    lcd_send_command(CLR_DISP);
+    lcd_send_line1("Score:");
+    lcd_send_command(DD_RAM_ADDR + 7);
+    lcd_send_int(score);
+    lcd_send_line2("  Press START! ");
+}
+
+static void hud_init() {
+    lcd_send_command(CLR_DISP);
+
+    lcd_send_line1("HP|");
+    lcd_send_line2("03|");
+
+    lcd_send_command(DD_RAM_ADDR + 13);
+    lcd_send_text("|TM");
+    lcd_send_command(DD_RAM_ADDR2 + 13);
+    lcd_send_text("|99");
+}
+
+static void update_screen() {
+    lcd_send_command(DD_RAM_ADDR2 + 1);
+    lcd_send_int(health_points);
+}
+
 // -------------------- Main function --------------------
 int main() {
     port_init();
     lcd_init();
 
-    lcd_send_line1(" Shooting Range");
-    lcd_send_line2("  Press  start");
-
+    // ----- Program loop -----
     while (1) {
-        while (button_pressed() != BUTTON_MIDDLE) {
-            button_unlock();
-        }
-        
-        lcd_send_command(CLR_DISP);
-        lcd_send_line1("Loading...");
+        reset_game_state();
+        display_title_screen();
+        wait_until_button_pressed(BUTTON_MIDDLE);
+        display_loading_screen();
+        hud_init();
 
+        // ----- Game loop -----
         while (1) {
+            if (health_points <= 0) {
+                break;
+            }
+
             int button = button_pressed();
 
-            if (button == BUTTON_UP) {
-                lcd_send_command(CLR_DISP);
-                lcd_send_line1("BUTTON_UP");
-            }
-
-            if (button == BUTTON_LEFT) {
-                lcd_send_command(CLR_DISP);
-                lcd_send_line1("BUTTON_LEFT");
-            }
-
             if (button == BUTTON_MIDDLE) {
-                lcd_send_command(CLR_DISP);
-                lcd_send_line1("BUTTON_MIDDLE");
+                health_points -= 1;
             }
 
-            if (button == BUTTON_RIGHT) {
-                lcd_send_command(CLR_DISP);
-                lcd_send_line1("BUTTON_RIGHT");
-            }
-            
-            if (button == BUTTON_DOWN) {
-                lcd_send_command(CLR_DISP);
-                lcd_send_line1("BUTTON_DOWN");
-            }
-
+            update_screen();
             button_unlock();
         }
+
+        display_game_over_screen();
+        wait_until_button_pressed(BUTTON_MIDDLE);
+        display_score_screen();
+        wait_until_button_pressed(BUTTON_MIDDLE);
     }
 
     return 0;
