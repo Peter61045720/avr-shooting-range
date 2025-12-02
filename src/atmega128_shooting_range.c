@@ -104,6 +104,12 @@ static void lcd_send_text(char* text) {
     }
 }
 
+static void lcd_send_char_array(char* text, int n) {
+    for (int i = 0; i < n; i++) {
+        lcd_send_char(*text++);
+    }
+}
+
 static void lcd_send_line1(char* text) {
     lcd_send_command(DD_RAM_ADDR);
     lcd_send_text(text);
@@ -235,16 +241,96 @@ static void cg_ram_init() {
 // -------------------- Game functions & helpers --------------------
 
 // ----- Game logic -----
+
+// Movement directions
+#define DIRECTION_UP    1
+#define DIRECTION_LEFT  2
+#define DIRECTION_RIGHT 3
+#define DIRECTION_DOWN  4
+
+// Play area size
+#define ROWS 2
+#define COLS 10
+
+// Play area boundaries
+#define MIN_X 0
+#define MIN_Y 0
+#define MAX_X 9
+#define MAX_Y 1
+
+// ASCII codes
+#define SPACE       32
+#define NUMBER_1    49
+#define NUMBER_2    50
+#define NUMBER_3    51
+#define NUMBER_4    52
+#define NUMBER_5    53
+#define NUMBER_6    54
+#define NUMBER_7    55
+#define NUMBER_8    56
+#define NUMBER_9    57
+
 static int health_points = 3;
+static int crosshair_pos_x = 5;
+static int crosshair_pos_y = 1;
+static long score = 0;
 static volatile int remaining_time = 99;
 static volatile int tick = 0;
-static long score = 0;
+
+static char play_area[ROWS][COLS] = {
+    { SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE },
+    { SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE }
+};
+
+static void clear_play_area() {
+    for (int i = 0; i < ROWS; i++) {
+        for (int j = 0; j < COLS; j++) {
+            play_area[i][j] = SPACE;
+        }
+    }
+}
+
+static void clear_tile(int x, int y) {
+    play_area[y][x] = SPACE;
+}
+
+static void place_crosshair(int x, int y) {
+    play_area[y][x] = CHAR_CROSSHAIR;
+}
+
+static void move_crosshair(int direction) {
+    clear_tile(crosshair_pos_x, crosshair_pos_y);
+
+    if (direction == DIRECTION_UP) {
+        crosshair_pos_y = MIN_Y;
+    }
+
+    if (direction == DIRECTION_LEFT && crosshair_pos_x > MIN_X) {
+        crosshair_pos_x--;
+    }
+
+    if (direction == DIRECTION_RIGHT && crosshair_pos_x < MAX_X) {
+        crosshair_pos_x++;
+    }
+
+    if (direction == DIRECTION_DOWN) {
+        crosshair_pos_y = MAX_Y;
+    }
+
+    place_crosshair(crosshair_pos_x, crosshair_pos_y);
+}
+
+
 
 static void reset_game_state() {
     health_points = 3;
+    crosshair_pos_x = 5;
+    crosshair_pos_y = 1;
+    score = 0;
     remaining_time = 99;
     tick = 0;
-    score = 0;
+    clear_play_area();
+    place_crosshair(crosshair_pos_x, crosshair_pos_y);
 }
 
 // ----- Display -----
@@ -295,11 +381,6 @@ static void hud_init() {
     lcd_send_command(DD_RAM_ADDR2 + 13);
     lcd_send_char('|');
     lcd_send_int(remaining_time);
-
-    lcd_send_command(DD_RAM_ADDR + 5);
-    lcd_send_char(CHAR_CROSSHAIR);
-    lcd_send_command(DD_RAM_ADDR2 + 7);
-    lcd_send_char(CHAR_HIT_MARKER);
 }
 
 static void update_screen() {
@@ -310,9 +391,14 @@ static void update_screen() {
 
     if (remaining_time < 10) {
         lcd_send_int(0);
-    } 
+    }
     
     lcd_send_int(remaining_time);
+
+    lcd_send_command(DD_RAM_ADDR + 3);
+    lcd_send_char_array(play_area[0], COLS);
+    lcd_send_command(DD_RAM_ADDR2 + 3);
+    lcd_send_char_array(play_area[1], COLS);
 }
 
 // -------------------- Timer --------------------
@@ -363,8 +449,24 @@ int main() {
 
             int button = button_pressed();
 
+            if (button == BUTTON_UP) {
+                move_crosshair(DIRECTION_UP);
+            }
+
+            if (button == BUTTON_LEFT) {
+                move_crosshair(DIRECTION_LEFT);
+            }
+
+            if (button == BUTTON_RIGHT) {
+                move_crosshair(DIRECTION_RIGHT);
+            }
+
+            if (button == BUTTON_DOWN) {
+                move_crosshair(DIRECTION_DOWN);
+            }
+
             if (button == BUTTON_MIDDLE) {
-                health_points -= 1;
+                health_points--;
             }
 
             update_screen();
