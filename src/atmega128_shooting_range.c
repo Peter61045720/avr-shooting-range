@@ -258,8 +258,12 @@ static void cg_ram_init() {
 #define MAX_X 9
 #define MAX_Y 1
 
+// Play area offset on the LCD
+#define OFFSET 3
+
 // ASCII codes
 #define SPACE       32
+#define NUMBER_0    48
 #define NUMBER_1    49
 #define NUMBER_2    50
 #define NUMBER_3    51
@@ -270,9 +274,14 @@ static void cg_ram_init() {
 #define NUMBER_8    56
 #define NUMBER_9    57
 
+typedef struct {
+    int x, y;
+    int prev_x, prev_y;
+} crosshair_t;
+
+static crosshair_t crosshair = { 5, 1, 5, 1 };
+static char current_number = NUMBER_0;
 static int health_points = 3;
-static int crosshair_pos_x = 5;
-static int crosshair_pos_y = 1;
 static long score = 0;
 static volatile int remaining_time = 99;
 static volatile int tick = 0;
@@ -290,47 +299,56 @@ static void clear_play_area() {
     }
 }
 
-static void clear_tile(int x, int y) {
-    play_area[y][x] = SPACE;
-}
-
-static void place_crosshair(int x, int y) {
-    play_area[y][x] = CHAR_CROSSHAIR;
-}
-
 static void move_crosshair(int direction) {
-    clear_tile(crosshair_pos_x, crosshair_pos_y);
+    crosshair.prev_x = crosshair.x;
+    crosshair.prev_y = crosshair.y;
 
     if (direction == DIRECTION_UP) {
-        crosshair_pos_y = MIN_Y;
+        crosshair.y = MIN_Y;
     }
 
-    if (direction == DIRECTION_LEFT && crosshair_pos_x > MIN_X) {
-        crosshair_pos_x--;
+    if (direction == DIRECTION_LEFT && crosshair.x > MIN_X) {
+        crosshair.x--;
     }
 
-    if (direction == DIRECTION_RIGHT && crosshair_pos_x < MAX_X) {
-        crosshair_pos_x++;
+    if (direction == DIRECTION_RIGHT && crosshair.x < MAX_X) {
+        crosshair.x++;
     }
 
     if (direction == DIRECTION_DOWN) {
-        crosshair_pos_y = MAX_Y;
+        crosshair.y = MAX_Y;
     }
-
-    place_crosshair(crosshair_pos_x, crosshair_pos_y);
 }
 
+static int crosshair_on_target() {
+    return play_area[crosshair.y][crosshair.x] != SPACE;
+}
 
+static int crosshair_on_correct_target() {
+    return play_area[crosshair.y][crosshair.x] == current_number + 1;
+}
+
+static void shoot() {
+    if (crosshair_on_target() && crosshair_on_correct_target()) {
+        play_area[crosshair.y][crosshair.x] = SPACE;
+        current_number++;
+        score += 50;
+    } else {
+        health_points--;
+    }
+}
 
 static void reset_game_state() {
+    current_number = NUMBER_0;
+    crosshair.x = 5;
+    crosshair.y = 1;
+    crosshair.prev_x = 5;
+    crosshair.prev_y = 1;
     health_points = 3;
-    crosshair_pos_x = 5;
-    crosshair_pos_y = 1;
     score = 0;
     remaining_time = 99;
     tick = 0;
     clear_play_area();
-    place_crosshair(crosshair_pos_x, crosshair_pos_y);
 }
 
 // ----- Display -----
@@ -360,6 +378,7 @@ static void display_score_screen() {
     lcd_send_line2("  Press START! ");
 }
 
+// HUD layer (HP, Time)
 static void hud_init() {
     lcd_send_command(CLR_DISP);
 
@@ -383,7 +402,7 @@ static void hud_init() {
     lcd_send_int(remaining_time);
 }
 
-static void update_screen() {
+static void update_hud() {
     lcd_send_command(DD_RAM_ADDR2);
     lcd_send_int(health_points);
 
@@ -392,13 +411,39 @@ static void update_screen() {
     if (remaining_time < 10) {
         lcd_send_int(0);
     }
-    
-    lcd_send_int(remaining_time);
 
-    lcd_send_command(DD_RAM_ADDR + 3);
+    lcd_send_int(remaining_time);
+}
+
+// Play area layer (Targets)
+static void play_area_init() {
+    // TODO: remove dummy targets
+    play_area[1][3] = NUMBER_1;
+    play_area[0][5] = NUMBER_2;
+    play_area[0][6] = NUMBER_3;
+    lcd_send_command(DD_RAM_ADDR + OFFSET);
     lcd_send_char_array(play_area[0], COLS);
-    lcd_send_command(DD_RAM_ADDR2 + 3);
+    lcd_send_command(DD_RAM_ADDR2 + OFFSET);
     lcd_send_char_array(play_area[1], COLS);
+}
+
+// Overlay layer (Crosshair)
+static int get_dd_ram_address(int x, int y) {
+    int base = y == MIN_Y ? DD_RAM_ADDR : DD_RAM_ADDR2;
+    return base + OFFSET + x;
+}
+
+static void overlay_init() {
+    lcd_send_command(get_dd_ram_address(crosshair.x, crosshair.y));
+    lcd_send_char(CHAR_CROSSHAIR);
+}
+
+static void update_overlay() {
+    lcd_send_command(get_dd_ram_address(crosshair.prev_x, crosshair.prev_y));
+    lcd_send_char(play_area[crosshair.prev_y][crosshair.prev_x]);
+
+    lcd_send_command(get_dd_ram_address(crosshair.x, crosshair.y));
+    lcd_send_char(crosshair_on_target() ? CHAR_HIT_MARKER : CHAR_CROSSHAIR);
 }
 
 // -------------------- Timer --------------------
@@ -440,6 +485,8 @@ int main() {
         display_loading_screen();
         reset_timer(99);
         hud_init();
+        play_area_init();
+        overlay_init();
 
         // ----- Game loop -----
         while (1) {
@@ -451,25 +498,30 @@ int main() {
 
             if (button == BUTTON_UP) {
                 move_crosshair(DIRECTION_UP);
+                update_overlay();
             }
 
             if (button == BUTTON_LEFT) {
                 move_crosshair(DIRECTION_LEFT);
+                update_overlay();
             }
 
             if (button == BUTTON_RIGHT) {
                 move_crosshair(DIRECTION_RIGHT);
+                update_overlay();
             }
 
             if (button == BUTTON_DOWN) {
                 move_crosshair(DIRECTION_DOWN);
+                update_overlay();
             }
 
             if (button == BUTTON_MIDDLE) {
-                health_points--;
+                shoot();
+                update_overlay();
             }
 
-            update_screen();
+            update_hud();
             button_unlock();
         }
 
