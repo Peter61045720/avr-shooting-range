@@ -211,24 +211,24 @@ static void wait_until_button_pressed(int button_code) {
 }
 
 // -------------------- Custom characters --------------------
-#define CHAR_CROSSHAIR  0
-#define CHAR_HIT_MARKER 1
-#define CHAR_HEART      2
-#define CHAR_TIMER      3
-#define CHAR_EMPTY1     4
-#define CHAR_EMPTY2     5
-#define CHAR_EMPTY3     6
-#define CHAR_EMPTY4     7
+#define CHAR_CROSSHAIR      0
+#define CHAR_HIT_MARKER     1
+#define CHAR_HEART          2
+#define CHAR_TIMER          3
+#define CHAR_HOURGLASS_UP   4
+#define CHAR_HOURGLASS_DOWN 5
+#define CHAR_GUN_PART_1     6
+#define CHAR_GUN_PART_2     7
 
 static unsigned char cg_ram[64] = {
     0b00000, 0b01010, 0b10001, 0b10101, 0b10001, 0b01010, 0b00000, 0b00000, // CROSSHAIR
     0b00000, 0b10001, 0b01010, 0b00000, 0b01010, 0b10001, 0b00000, 0b00000, // HIT MARKER
     0b00000, 0b01010, 0b11111, 0b11111, 0b01110, 0b00100, 0b00000, 0b00000, // HEART
     0b01110, 0b00100, 0b01110, 0b10101, 0b10111, 0b10001, 0b01110, 0b00000, // TIMER
-    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY1
-    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY2
-    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY3
-    0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, 0b00000, // EMPTY4
+    0b11111, 0b11111, 0b01110, 0b00100, 0b01010, 0b10001, 0b11111, 0b00000, // HOURGLASS UP
+    0b11111, 0b10001, 0b01010, 0b00100, 0b01110, 0b11111, 0b11111, 0b00000, // HOURGLASS DOWN
+    0b00000, 0b00000, 0b00111, 0b11111, 0b11101, 0b10110, 0b00000, 0b00000, // GUN PART 1
+    0b00000, 0b00001, 0b11111, 0b11111, 0b00000, 0b00000, 0b00000, 0b00000, // GUN PART 2
 };
 
 static void cg_ram_init() {
@@ -354,13 +354,19 @@ static void reset_game_state() {
 // ----- Display -----
 static void display_title_screen() {
     lcd_send_command(CLR_DISP);
-    lcd_send_line1(" Shooting Range");
+    lcd_send_line1(" Number Hunt");
+    lcd_send_command(DD_RAM_ADDR + 13);
+    lcd_send_char(CHAR_GUN_PART_1);
+    lcd_send_char(CHAR_GUN_PART_2);
     lcd_send_line2("  Press START! ");
 }
 
 static void display_loading_screen() {
     lcd_send_command(CLR_DISP);
-    lcd_send_line1("Loading...");
+    lcd_send_command(DD_RAM_ADDR + 1);
+    lcd_send_char(CHAR_HOURGLASS_UP);
+    lcd_send_text(" Loading... ");
+    lcd_send_char(CHAR_HOURGLASS_DOWN);
     _delay_ms(5000);
 }
 
