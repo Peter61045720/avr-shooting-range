@@ -248,6 +248,17 @@ static void cg_ram_init() {
 #define DIRECTION_RIGHT 3
 #define DIRECTION_DOWN  4
 
+// Movement types for targets
+#define MOVE_NONE       0
+#define MOVE_HORIZONTAL 1
+#define MOVE_VERTICAL   2
+#define MOVE_CIRCULAR   3
+
+// Difficulties
+#define EASY    0
+#define MEDIUM  1
+#define HARD    2
+
 // Play area size
 #define ROWS 2
 #define COLS 10
@@ -279,7 +290,22 @@ typedef struct {
     int prev_x, prev_y;
 } crosshair_t;
 
+typedef struct {
+    int x, y;
+    char value;
+    int movement_type;
+} target_t;
+
+typedef struct {
+    target_t targets[7];
+    int target_count;
+    char max_target_value;
+} level_t;
+
 static crosshair_t crosshair = { 5, 1, 5, 1 };
+static level_t levels[9];
+static int current_level = 0;
+static int current_difficulty = EASY;
 static char current_number = NUMBER_0;
 static int health_points = 3;
 static long score = 0;
@@ -291,12 +317,72 @@ static char play_area[ROWS][COLS] = {
     { SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE }
 };
 
+static void levels_init() {
+    // Level 1 (easy,   4 targets, no target movement)
+    levels[0].targets[0] = (target_t){ 2, 0, NUMBER_1, MOVE_NONE };
+    levels[0].targets[1] = (target_t){ 3, 0, NUMBER_2, MOVE_NONE };
+    levels[0].targets[2] = (target_t){ 6, 0, NUMBER_3, MOVE_NONE };
+    levels[0].targets[3] = (target_t){ 7, 0, NUMBER_4, MOVE_NONE };
+    levels[0].target_count = 4;
+    levels[0].max_target_value = NUMBER_4;
+
+    // Level 2 (easy,   4 targets, no target movement)
+    levels[1].targets[0] = (target_t){ 0, 1, NUMBER_1, MOVE_NONE };
+    levels[1].targets[1] = (target_t){ 1, 0, NUMBER_2, MOVE_NONE };
+    levels[1].targets[2] = (target_t){ 8, 0, NUMBER_3, MOVE_NONE };
+    levels[1].targets[3] = (target_t){ 9, 1, NUMBER_4, MOVE_NONE };
+    levels[1].target_count = 4;
+    levels[1].max_target_value = NUMBER_4;
+
+    // Level 3 (easy,   4 targets, no target movement)
+    levels[2].targets[0] = (target_t){ 0, 0, NUMBER_1, MOVE_NONE };
+    levels[2].targets[1] = (target_t){ 9, 0, NUMBER_2, MOVE_NONE };
+    levels[2].targets[2] = (target_t){ 5, 0, NUMBER_3, MOVE_NONE };
+    levels[2].targets[3] = (target_t){ 2, 1, NUMBER_4, MOVE_NONE };
+    levels[2].target_count = 4;
+    levels[2].max_target_value = NUMBER_4;
+
+    // TODO: implement rest of the levels
+    // Level 4 (medium, 5 targets, horizontal target movement)
+
+    // Level 5 (medium, 5 targets, vertical target movement)
+
+    // Level 6 (medium, 5 targets, horizontal and vertical target movement)
+
+    // Level 7 (hard,   7 targets, horizontal and circular target movement)
+
+    // Level 8 (hard,   7 targets, vertical and circular target movement)
+
+    // Level 9 (hard,   7 targets, horizontal, vertical and circular target movement)
+}
+
+static void place_targets() {
+    for (int i = 0; i < levels[current_level].target_count; i++) {
+        target_t* target = &levels[current_level].targets[i];
+        play_area[target->y][target->x] = target->value;
+    }
+}
+
 static void clear_play_area() {
     for (int i = 0; i < ROWS; i++) {
         for (int j = 0; j < COLS; j++) {
             play_area[i][j] = SPACE;
         }
     }
+}
+
+static int level_completed() {
+    if (current_number == levels[current_level].max_target_value) {
+        current_level++;
+        clear_play_area();
+        place_targets();
+        crosshair.x = 5;
+        crosshair.y = 1;
+        current_number = NUMBER_0;
+        return 1;
+    }
+
+    return 0;
 }
 
 static void move_crosshair(int direction) {
@@ -332,13 +418,15 @@ static void shoot() {
     if (crosshair_on_target() && crosshair_on_correct_target()) {
         play_area[crosshair.y][crosshair.x] = SPACE;
         current_number++;
-        score += 50;
+        score += 50 * (current_difficulty * 2 + 1);
     } else {
         health_points--;
     }
 }
 
 static void reset_game_state() {
+    current_level = 0;
+    current_difficulty = EASY;
     current_number = NUMBER_0;
     crosshair.x = 5;
     crosshair.y = 1;
@@ -370,6 +458,13 @@ static void display_loading_screen() {
     _delay_ms(5000);
 }
 
+static void display_current_level() {
+    lcd_send_command(CLR_DISP);
+    lcd_send_line1("    Level ");
+    lcd_send_int(current_level + 1);
+    _delay_ms(4000);
+}
+
 static void display_game_over_screen() {
     lcd_send_command(CLR_DISP);
     lcd_send_line1("   Game over");
@@ -378,8 +473,7 @@ static void display_game_over_screen() {
 
 static void display_score_screen() {
     lcd_send_command(CLR_DISP);
-    lcd_send_line1("Score:");
-    lcd_send_command(DD_RAM_ADDR + 7);
+    lcd_send_line1(" Score: ");
     lcd_send_int(score);
     lcd_send_line2("  Press START! ");
 }
@@ -423,10 +517,6 @@ static void update_hud() {
 
 // Play area layer (Targets)
 static void play_area_init() {
-    // TODO: remove dummy targets
-    play_area[1][3] = NUMBER_1;
-    play_area[0][5] = NUMBER_2;
-    play_area[0][6] = NUMBER_3;
     lcd_send_command(DD_RAM_ADDR + OFFSET);
     lcd_send_char_array(play_area[0], COLS);
     lcd_send_command(DD_RAM_ADDR2 + OFFSET);
@@ -482,6 +572,7 @@ int main() {
     lcd_init();
     cg_ram_init();
     timer_init();
+    levels_init();
 
     // ----- Program loop -----
     while (1) {
@@ -489,6 +580,8 @@ int main() {
         display_title_screen();
         wait_until_button_pressed(BUTTON_MIDDLE);
         display_loading_screen();
+        place_targets();
+        display_current_level();
         reset_timer(99);
         hud_init();
         play_area_init();
@@ -525,6 +618,14 @@ int main() {
             if (button == BUTTON_MIDDLE) {
                 shoot();
                 update_overlay();
+
+                if (level_completed()) {
+                    display_current_level();
+                    reset_timer(99);
+                    hud_init();
+                    play_area_init();
+                    overlay_init();
+                }
             }
 
             update_hud();
