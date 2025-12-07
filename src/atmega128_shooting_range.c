@@ -342,18 +342,65 @@ static void levels_init() {
     levels[2].target_count = 4;
     levels[2].max_target_value = NUMBER_4;
 
-    // TODO: implement rest of the levels
     // Level 4 (medium, 5 targets, horizontal target movement)
+    levels[3].targets[0] = (target_t){ 2, 0, NUMBER_1, MOVE_NONE };
+    levels[3].targets[1] = (target_t){ 7, 0, NUMBER_2, MOVE_HORIZONTAL };
+    levels[3].targets[2] = (target_t){ 3, 1, NUMBER_3, MOVE_NONE };
+    levels[3].targets[3] = (target_t){ 0, 1, NUMBER_4, MOVE_HORIZONTAL };
+    levels[3].targets[4] = (target_t){ 9, 1, NUMBER_5, MOVE_NONE };
+    levels[3].target_count = 5;
+    levels[3].max_target_value = NUMBER_5;
 
     // Level 5 (medium, 5 targets, vertical target movement)
+    levels[4].targets[0] = (target_t){ 1, 0, NUMBER_1, MOVE_NONE };
+    levels[4].targets[1] = (target_t){ 7, 1, NUMBER_2, MOVE_NONE };
+    levels[4].targets[2] = (target_t){ 2, 0, NUMBER_3, MOVE_VERTICAL };
+    levels[4].targets[3] = (target_t){ 5, 0, NUMBER_4, MOVE_NONE };
+    levels[4].targets[4] = (target_t){ 8, 0, NUMBER_5, MOVE_VERTICAL };
+    levels[4].target_count = 5;
+    levels[4].max_target_value = NUMBER_5;
 
     // Level 6 (medium, 5 targets, horizontal and vertical target movement)
+    levels[5].targets[0] = (target_t){ 4, 0, NUMBER_1, MOVE_NONE };
+    levels[5].targets[1] = (target_t){ 0, 0, NUMBER_2, MOVE_HORIZONTAL };
+    levels[5].targets[2] = (target_t){ 2, 0, NUMBER_3, MOVE_VERTICAL };
+    levels[5].targets[3] = (target_t){ 7, 1, NUMBER_4, MOVE_HORIZONTAL };
+    levels[5].targets[4] = (target_t){ 9, 0, NUMBER_5, MOVE_VERTICAL };
+    levels[5].target_count = 5;
+    levels[5].max_target_value = NUMBER_5;
 
     // Level 7 (hard,   7 targets, horizontal and circular target movement)
+    levels[6].targets[0] = (target_t){ 4, 1, NUMBER_1, MOVE_NONE };
+    levels[6].targets[1] = (target_t){ 0, 0, NUMBER_2, MOVE_CIRCULAR };
+    levels[6].targets[2] = (target_t){ 4, 0, NUMBER_3, MOVE_HORIZONTAL };
+    levels[6].targets[3] = (target_t){ 8, 0, NUMBER_4, MOVE_CIRCULAR };
+    levels[6].targets[4] = (target_t){ 6, 1, NUMBER_5, MOVE_HORIZONTAL };
+    levels[6].targets[5] = (target_t){ 2, 1, NUMBER_6, MOVE_HORIZONTAL };
+    levels[6].targets[6] = (target_t){ 6, 0, NUMBER_7, MOVE_NONE };
+    levels[6].target_count = 7;
+    levels[6].max_target_value = NUMBER_7;
 
     // Level 8 (hard,   7 targets, vertical and circular target movement)
+    levels[7].targets[0] = (target_t){ 1, 0, NUMBER_1, MOVE_VERTICAL };
+    levels[7].targets[1] = (target_t){ 7, 0, NUMBER_2, MOVE_CIRCULAR };
+    levels[7].targets[2] = (target_t){ 6, 1, NUMBER_3, MOVE_NONE };
+    levels[7].targets[3] = (target_t){ 9, 0, NUMBER_4, MOVE_VERTICAL };
+    levels[7].targets[4] = (target_t){ 6, 0, NUMBER_5, MOVE_NONE };
+    levels[7].targets[5] = (target_t){ 2, 0, NUMBER_6, MOVE_CIRCULAR };
+    levels[7].targets[6] = (target_t){ 0, 1, NUMBER_7, MOVE_NONE };
+    levels[7].target_count = 7;
+    levels[7].max_target_value = NUMBER_7;
 
     // Level 9 (hard,   7 targets, horizontal, vertical and circular target movement)
+    levels[8].targets[0] = (target_t){ 3, 0, NUMBER_1, MOVE_CIRCULAR };
+    levels[8].targets[1] = (target_t){ 5, 0, NUMBER_2, MOVE_HORIZONTAL };
+    levels[8].targets[2] = (target_t){ 1, 0, NUMBER_3, MOVE_CIRCULAR };
+    levels[8].targets[3] = (target_t){ 0, 0, NUMBER_4, MOVE_VERTICAL };
+    levels[8].targets[4] = (target_t){ 7, 0, NUMBER_5, MOVE_HORIZONTAL };
+    levels[8].targets[5] = (target_t){ 9, 0, NUMBER_6, MOVE_VERTICAL };
+    levels[8].targets[6] = (target_t){ 7, 1, NUMBER_7, MOVE_HORIZONTAL };
+    levels[8].target_count = 7;
+    levels[8].max_target_value = NUMBER_7;
 }
 
 static void place_targets() {
@@ -463,6 +510,12 @@ static void display_current_level() {
     lcd_send_line1("    Level ");
     lcd_send_int(current_level + 1);
     _delay_ms(4000);
+}
+
+static void display_victory_screen() {
+    lcd_send_command(CLR_DISP);
+    lcd_send_line1("    You Win!");
+    lcd_send_line2("  Press START!");
 }
 
 static void display_game_over_screen() {
@@ -620,6 +673,10 @@ int main() {
                 update_overlay();
 
                 if (level_completed()) {
+                    if (current_level == 9) {
+                        break;
+                    }
+
                     display_current_level();
                     reset_timer(99);
                     hud_init();
@@ -632,7 +689,12 @@ int main() {
             button_unlock();
         }
 
-        display_game_over_screen();
+        if (current_level == 9) {
+            display_victory_screen();
+        } else {
+            display_game_over_screen();
+        }
+
         wait_until_button_pressed(BUTTON_MIDDLE);
         display_score_screen();
         wait_until_button_pressed(BUTTON_MIDDLE);
