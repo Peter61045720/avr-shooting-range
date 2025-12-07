@@ -294,6 +294,8 @@ typedef struct {
     int x, y;
     char value;
     int movement_type;
+    int direction;
+    int phase;
 } target_t;
 
 typedef struct {
@@ -302,7 +304,7 @@ typedef struct {
     char max_target_value;
 } level_t;
 
-static crosshair_t crosshair = { 5, 1, 5, 1 };
+static crosshair_t crosshair = { 5, 1, 0, 0 };
 static level_t levels[9];
 static int current_level = 0;
 static int current_difficulty = EASY;
@@ -311,6 +313,7 @@ static int health_points = 3;
 static long score = 0;
 static volatile int remaining_time = 99;
 static volatile int tick = 0;
+static volatile int movement_update_flag = 0;
 
 static char play_area[ROWS][COLS] = {
     { SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE, SPACE },
@@ -319,86 +322,86 @@ static char play_area[ROWS][COLS] = {
 
 static void levels_init() {
     // Level 1 (easy,   4 targets, no target movement)
-    levels[0].targets[0] = (target_t){ 2, 0, NUMBER_1, MOVE_NONE };
-    levels[0].targets[1] = (target_t){ 3, 0, NUMBER_2, MOVE_NONE };
-    levels[0].targets[2] = (target_t){ 6, 0, NUMBER_3, MOVE_NONE };
-    levels[0].targets[3] = (target_t){ 7, 0, NUMBER_4, MOVE_NONE };
+    levels[0].targets[0] = (target_t){ 2, 0, NUMBER_1, MOVE_NONE, 0, 0 };
+    levels[0].targets[1] = (target_t){ 3, 0, NUMBER_2, MOVE_NONE, 0, 0 };
+    levels[0].targets[2] = (target_t){ 6, 0, NUMBER_3, MOVE_NONE, 0, 0 };
+    levels[0].targets[3] = (target_t){ 7, 0, NUMBER_4, MOVE_NONE, 0, 0 };
     levels[0].target_count = 4;
     levels[0].max_target_value = NUMBER_4;
 
     // Level 2 (easy,   4 targets, no target movement)
-    levels[1].targets[0] = (target_t){ 0, 1, NUMBER_1, MOVE_NONE };
-    levels[1].targets[1] = (target_t){ 1, 0, NUMBER_2, MOVE_NONE };
-    levels[1].targets[2] = (target_t){ 8, 0, NUMBER_3, MOVE_NONE };
-    levels[1].targets[3] = (target_t){ 9, 1, NUMBER_4, MOVE_NONE };
+    levels[1].targets[0] = (target_t){ 0, 1, NUMBER_1, MOVE_NONE, 0, 0 };
+    levels[1].targets[1] = (target_t){ 1, 0, NUMBER_2, MOVE_NONE, 0, 0 };
+    levels[1].targets[2] = (target_t){ 8, 0, NUMBER_3, MOVE_NONE, 0, 0 };
+    levels[1].targets[3] = (target_t){ 9, 1, NUMBER_4, MOVE_NONE, 0, 0 };
     levels[1].target_count = 4;
     levels[1].max_target_value = NUMBER_4;
 
     // Level 3 (easy,   4 targets, no target movement)
-    levels[2].targets[0] = (target_t){ 0, 0, NUMBER_1, MOVE_NONE };
-    levels[2].targets[1] = (target_t){ 9, 0, NUMBER_2, MOVE_NONE };
-    levels[2].targets[2] = (target_t){ 5, 0, NUMBER_3, MOVE_NONE };
-    levels[2].targets[3] = (target_t){ 2, 1, NUMBER_4, MOVE_NONE };
+    levels[2].targets[0] = (target_t){ 0, 0, NUMBER_1, MOVE_NONE, 0, 0 };
+    levels[2].targets[1] = (target_t){ 9, 0, NUMBER_2, MOVE_NONE, 0, 0 };
+    levels[2].targets[2] = (target_t){ 5, 0, NUMBER_3, MOVE_NONE, 0, 0 };
+    levels[2].targets[3] = (target_t){ 2, 1, NUMBER_4, MOVE_NONE, 0, 0 };
     levels[2].target_count = 4;
     levels[2].max_target_value = NUMBER_4;
 
     // Level 4 (medium, 5 targets, horizontal target movement)
-    levels[3].targets[0] = (target_t){ 2, 0, NUMBER_1, MOVE_NONE };
-    levels[3].targets[1] = (target_t){ 7, 0, NUMBER_2, MOVE_HORIZONTAL };
-    levels[3].targets[2] = (target_t){ 3, 1, NUMBER_3, MOVE_NONE };
-    levels[3].targets[3] = (target_t){ 0, 1, NUMBER_4, MOVE_HORIZONTAL };
-    levels[3].targets[4] = (target_t){ 9, 1, NUMBER_5, MOVE_NONE };
+    levels[3].targets[0] = (target_t){ 2, 0, NUMBER_1, MOVE_NONE, 0, 0 };
+    levels[3].targets[1] = (target_t){ 7, 0, NUMBER_2, MOVE_HORIZONTAL, 1, 0 };
+    levels[3].targets[2] = (target_t){ 3, 1, NUMBER_3, MOVE_NONE, 0, 0 };
+    levels[3].targets[3] = (target_t){ 0, 1, NUMBER_4, MOVE_HORIZONTAL, 1, 0 };
+    levels[3].targets[4] = (target_t){ 9, 1, NUMBER_5, MOVE_NONE, 0, 0 };
     levels[3].target_count = 5;
     levels[3].max_target_value = NUMBER_5;
 
     // Level 5 (medium, 5 targets, vertical target movement)
-    levels[4].targets[0] = (target_t){ 1, 0, NUMBER_1, MOVE_NONE };
-    levels[4].targets[1] = (target_t){ 7, 1, NUMBER_2, MOVE_NONE };
-    levels[4].targets[2] = (target_t){ 2, 0, NUMBER_3, MOVE_VERTICAL };
-    levels[4].targets[3] = (target_t){ 5, 0, NUMBER_4, MOVE_NONE };
-    levels[4].targets[4] = (target_t){ 8, 0, NUMBER_5, MOVE_VERTICAL };
+    levels[4].targets[0] = (target_t){ 1, 0, NUMBER_1, MOVE_NONE, 0, 0 };
+    levels[4].targets[1] = (target_t){ 7, 1, NUMBER_2, MOVE_NONE, 0, 0 };
+    levels[4].targets[2] = (target_t){ 2, 0, NUMBER_3, MOVE_VERTICAL, 1, 0 };
+    levels[4].targets[3] = (target_t){ 5, 0, NUMBER_4, MOVE_NONE, 0, 0 };
+    levels[4].targets[4] = (target_t){ 8, 0, NUMBER_5, MOVE_VERTICAL, 1, 0 };
     levels[4].target_count = 5;
     levels[4].max_target_value = NUMBER_5;
 
     // Level 6 (medium, 5 targets, horizontal and vertical target movement)
-    levels[5].targets[0] = (target_t){ 4, 0, NUMBER_1, MOVE_NONE };
-    levels[5].targets[1] = (target_t){ 0, 0, NUMBER_2, MOVE_HORIZONTAL };
-    levels[5].targets[2] = (target_t){ 2, 0, NUMBER_3, MOVE_VERTICAL };
-    levels[5].targets[3] = (target_t){ 7, 1, NUMBER_4, MOVE_HORIZONTAL };
-    levels[5].targets[4] = (target_t){ 9, 0, NUMBER_5, MOVE_VERTICAL };
+    levels[5].targets[0] = (target_t){ 4, 0, NUMBER_1, MOVE_NONE, 0, 0 };
+    levels[5].targets[1] = (target_t){ 0, 0, NUMBER_2, MOVE_HORIZONTAL, 1, 0 };
+    levels[5].targets[2] = (target_t){ 2, 0, NUMBER_3, MOVE_VERTICAL, 1, 0 };
+    levels[5].targets[3] = (target_t){ 7, 1, NUMBER_4, MOVE_HORIZONTAL, 1, 0 };
+    levels[5].targets[4] = (target_t){ 9, 0, NUMBER_5, MOVE_VERTICAL, 1, 0 };
     levels[5].target_count = 5;
     levels[5].max_target_value = NUMBER_5;
 
     // Level 7 (hard,   7 targets, horizontal and circular target movement)
-    levels[6].targets[0] = (target_t){ 4, 1, NUMBER_1, MOVE_NONE };
-    levels[6].targets[1] = (target_t){ 0, 0, NUMBER_2, MOVE_CIRCULAR };
-    levels[6].targets[2] = (target_t){ 4, 0, NUMBER_3, MOVE_HORIZONTAL };
-    levels[6].targets[3] = (target_t){ 8, 0, NUMBER_4, MOVE_CIRCULAR };
-    levels[6].targets[4] = (target_t){ 6, 1, NUMBER_5, MOVE_HORIZONTAL };
-    levels[6].targets[5] = (target_t){ 2, 1, NUMBER_6, MOVE_HORIZONTAL };
-    levels[6].targets[6] = (target_t){ 6, 0, NUMBER_7, MOVE_NONE };
+    levels[6].targets[0] = (target_t){ 4, 1, NUMBER_1, MOVE_NONE, 0, 0 };
+    levels[6].targets[1] = (target_t){ 0, 0, NUMBER_2, MOVE_CIRCULAR, 0, 0 };
+    levels[6].targets[2] = (target_t){ 4, 0, NUMBER_3, MOVE_HORIZONTAL, 1, 0 };
+    levels[6].targets[3] = (target_t){ 8, 0, NUMBER_4, MOVE_CIRCULAR, 0, 0 };
+    levels[6].targets[4] = (target_t){ 6, 1, NUMBER_5, MOVE_HORIZONTAL, 1, 0 };
+    levels[6].targets[5] = (target_t){ 2, 1, NUMBER_6, MOVE_HORIZONTAL, 1, 0 };
+    levels[6].targets[6] = (target_t){ 6, 0, NUMBER_7, MOVE_NONE, 0, 0 };
     levels[6].target_count = 7;
     levels[6].max_target_value = NUMBER_7;
 
     // Level 8 (hard,   7 targets, vertical and circular target movement)
-    levels[7].targets[0] = (target_t){ 1, 0, NUMBER_1, MOVE_VERTICAL };
-    levels[7].targets[1] = (target_t){ 7, 0, NUMBER_2, MOVE_CIRCULAR };
-    levels[7].targets[2] = (target_t){ 6, 1, NUMBER_3, MOVE_NONE };
-    levels[7].targets[3] = (target_t){ 9, 0, NUMBER_4, MOVE_VERTICAL };
-    levels[7].targets[4] = (target_t){ 6, 0, NUMBER_5, MOVE_NONE };
-    levels[7].targets[5] = (target_t){ 2, 0, NUMBER_6, MOVE_CIRCULAR };
-    levels[7].targets[6] = (target_t){ 0, 1, NUMBER_7, MOVE_NONE };
+    levels[7].targets[0] = (target_t){ 1, 0, NUMBER_1, MOVE_VERTICAL, 1, 0 };
+    levels[7].targets[1] = (target_t){ 7, 0, NUMBER_2, MOVE_CIRCULAR, 0, 0 };
+    levels[7].targets[2] = (target_t){ 6, 1, NUMBER_3, MOVE_NONE, 0, 0 };
+    levels[7].targets[3] = (target_t){ 9, 0, NUMBER_4, MOVE_VERTICAL, 1, 0 };
+    levels[7].targets[4] = (target_t){ 6, 0, NUMBER_5, MOVE_NONE, 0, 0 };
+    levels[7].targets[5] = (target_t){ 2, 0, NUMBER_6, MOVE_CIRCULAR, 0, 0};
+    levels[7].targets[6] = (target_t){ 0, 1, NUMBER_7, MOVE_NONE, 0, 0 };
     levels[7].target_count = 7;
     levels[7].max_target_value = NUMBER_7;
 
     // Level 9 (hard,   7 targets, horizontal, vertical and circular target movement)
-    levels[8].targets[0] = (target_t){ 3, 0, NUMBER_1, MOVE_CIRCULAR };
-    levels[8].targets[1] = (target_t){ 5, 0, NUMBER_2, MOVE_HORIZONTAL };
-    levels[8].targets[2] = (target_t){ 1, 0, NUMBER_3, MOVE_CIRCULAR };
-    levels[8].targets[3] = (target_t){ 0, 0, NUMBER_4, MOVE_VERTICAL };
-    levels[8].targets[4] = (target_t){ 7, 0, NUMBER_5, MOVE_HORIZONTAL };
-    levels[8].targets[5] = (target_t){ 9, 0, NUMBER_6, MOVE_VERTICAL };
-    levels[8].targets[6] = (target_t){ 7, 1, NUMBER_7, MOVE_HORIZONTAL };
+    levels[8].targets[0] = (target_t){ 3, 0, NUMBER_1, MOVE_CIRCULAR, 0, 0 };
+    levels[8].targets[1] = (target_t){ 5, 0, NUMBER_2, MOVE_HORIZONTAL, 1, 0 };
+    levels[8].targets[2] = (target_t){ 1, 0, NUMBER_3, MOVE_CIRCULAR, 0, 0 };
+    levels[8].targets[3] = (target_t){ 0, 0, NUMBER_4, MOVE_VERTICAL, 1, 0 };
+    levels[8].targets[4] = (target_t){ 7, 0, NUMBER_5, MOVE_HORIZONTAL, 1, 0 };
+    levels[8].targets[5] = (target_t){ 9, 0, NUMBER_6, MOVE_VERTICAL, 1, 0 };
+    levels[8].targets[6] = (target_t){ 7, 1, NUMBER_7, MOVE_HORIZONTAL, 1, 0 };
     levels[8].target_count = 7;
     levels[8].max_target_value = NUMBER_7;
 }
@@ -418,6 +421,47 @@ static void clear_play_area() {
     }
 }
 
+static void move_targets() {
+    clear_play_area();
+
+    for (int i = 0; i < levels[current_level].target_count; i++) {
+        target_t* target = &levels[current_level].targets[i];
+
+        if (target->value == SPACE) {
+            continue;
+        }
+
+        switch (target->movement_type) {
+            case MOVE_HORIZONTAL:
+                target->x += target->direction;
+                target->direction = -target->direction;
+                break;
+
+            case MOVE_VERTICAL:
+                target->y += target->direction;
+                target->direction = -target->direction;
+                break;
+
+            case MOVE_CIRCULAR:
+                switch (target->phase) {
+                    case 0: target->x++; break;
+                    case 1: target->y++; break;
+                    case 2: target->x--; break;
+                    case 3: target->y--; break;
+
+                }
+
+                target->phase = (target->phase + 1) % 4;
+                break;
+
+            case MOVE_NONE:
+                break;
+        }
+
+        play_area[target->y][target->x] = target->value;
+    }
+}
+
 static int level_completed() {
     if (current_number == levels[current_level].max_target_value) {
         current_level++;
@@ -426,6 +470,12 @@ static int level_completed() {
         crosshair.x = 5;
         crosshair.y = 1;
         current_number = NUMBER_0;
+        score += remaining_time * (current_difficulty * 10 + 1);
+
+        if (current_level % 3 == 0) {
+            current_difficulty++;
+        }
+
         return 1;
     }
 
@@ -464,6 +514,14 @@ static int crosshair_on_correct_target() {
 static void shoot() {
     if (crosshair_on_target() && crosshair_on_correct_target()) {
         play_area[crosshair.y][crosshair.x] = SPACE;
+        for (int i = 0; i < levels[current_level].target_count; i++) {
+            target_t* target = &levels[current_level].targets[i];
+
+            if (target->value == current_number + 1) {
+                levels[current_level].targets[i].value = SPACE;
+                break;
+            }
+        }
         current_number++;
         score += 50 * (current_difficulty * 2 + 1);
     } else {
@@ -477,12 +535,13 @@ static void reset_game_state() {
     current_number = NUMBER_0;
     crosshair.x = 5;
     crosshair.y = 1;
-    crosshair.prev_x = 5;
-    crosshair.prev_y = 1;
+    crosshair.prev_x = 0;
+    crosshair.prev_y = 0;
     health_points = 3;
     score = 0;
     remaining_time = 99;
     tick = 0;
+    movement_update_flag = 0;
     clear_play_area();
 }
 
@@ -578,7 +637,7 @@ static void play_area_init() {
 
 // Overlay layer (Crosshair)
 static int get_dd_ram_address(int x, int y) {
-    int base = y == MIN_Y ? DD_RAM_ADDR : DD_RAM_ADDR2;
+    int base = (y == MIN_Y) ? DD_RAM_ADDR : DD_RAM_ADDR2;
     return base + OFFSET + x;
 }
 
@@ -623,6 +682,7 @@ ISR(TIMER1_COMPA_vect) {
     if (tick >= TICK_MAX) {
         tick = 0;
         remaining_time--;
+        movement_update_flag = 1;
     }
 }
 
@@ -632,13 +692,13 @@ int main() {
     lcd_init();
     cg_ram_init();
     timer_init();
-    levels_init();
 
     // ----- Program loop -----
     while (1) {
         reset_game_state();
         display_title_screen();
         wait_until_button_pressed(BUTTON_MIDDLE);
+        levels_init();
         display_loading_screen();
         place_targets();
         display_current_level();
@@ -681,15 +741,26 @@ int main() {
 
                 if (level_completed()) {
                     if (current_level == 9) {
+                        score *= 100;
+                        score += health_points * 1000;
                         break;
                     }
 
                     display_current_level();
-                    reset_timer(99);
+                    reset_timer(48 / (current_difficulty + 1));
+                    movement_update_flag = 0;
                     hud_init();
                     play_area_init();
                     overlay_init();
                 }
+            }
+
+            if (movement_update_flag && current_difficulty != EASY) {
+                movement_update_flag = 0;
+
+                move_targets();
+                play_area_init();
+                update_overlay();
             }
 
             update_hud();
