@@ -596,11 +596,15 @@ static void update_overlay() {
 }
 
 // -------------------- Timer --------------------
+#define TICK_MAX 11
+
 static void timer_init() {
     // Timer1 (16 bit)
     TCNT1 = 0;
-    TCCR1B |= (1 << CS12) | (1 << CS10);    // Timer1 clock rate: 16 000 000 Hz / 1 024 = 15 625 Hz
-    TIMSK = (1 << TOIE1);                   // Overflow period: 65 536 / 15 625 Hz = 4,194304 sec
+    TCCR1B = (1 << WGM12);                  // CTC (Clear Timer on Compare match)
+    TCCR1B |= (1 << CS12) | (1 << CS10);    // Clock Source; Timer1 clock rate: 16 000 000 Hz / 1 024 = 15 625 Hz
+    OCR1A = 15624;                          // Overflow period: 15 625 / 15 625 Hz = 1 Hz
+    TIMSK |= (1 << OCIE1A);
     sei();
 }
 
@@ -610,10 +614,13 @@ static void reset_timer(int t) {
     remaining_time = t;
 }
 
-ISR(TIMER1_OVF_vect) {
+ISR(TIMER1_COMPA_vect) {
+    //! NOTE:
+    //! The timer is not accurate in simavr!
+    //! Change TICK_MAX to 1 on real hardware!
     tick++;
-    
-    if (tick >= 4) {
+
+    if (tick >= TICK_MAX) {
         tick = 0;
         remaining_time--;
     }
